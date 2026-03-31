@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { auth, googleProvider } from "./firebase";
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
@@ -89,7 +91,7 @@ const SEED_TASKS = [
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 
-export default function TaskFlowPro() {
+function Dashboard({ user, onLogout }) {
   const [tasks, setTasks] = useState(() => {
     try { const s = localStorage.getItem("tfp_tasks"); return s ? JSON.parse(s) : SEED_TASKS; }
     catch { return SEED_TASKS; }
@@ -385,6 +387,12 @@ export default function TaskFlowPro() {
             </select>
 
             <div style={{ flex: 1 }} />
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 16, paddingRight: 16, borderRight: `1px solid ${border}` }}>
+              {user?.photoURL && <img src={user.photoURL} alt="Avatar" style={{ width: 28, height: 28, borderRadius: "50%" }} />}
+              <span style={{ fontSize: 13, fontWeight: 700, color: text }}>{user?.displayName?.split(" ")[0] || "User"}</span>
+              <button onClick={onLogout} style={{ background: "transparent", border: "none", color: "#EF4444", cursor: "pointer", fontSize: 14, marginLeft: 4 }} title="Sign Out">✕</button>
+            </div>
 
             <button onClick={loadTemplate} style={{ ...styles.btnOutline, fontSize: 12 }}>Load {INDUSTRIES[industry].label} Template</button>
             <button onClick={() => setGoalModal(true)} style={{ ...styles.btnOutline, fontSize: 12 }}>Goals</button>
@@ -982,4 +990,61 @@ function GoalsModal({ goals, onClose, onUpdate, styles, border, textMuted, dark 
       </div>
     </div>
   );
+}
+
+// ─── LOGIN & AUTH WRAPPER ─────────────────────────────────────────────────────
+
+function LoginScreen() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      console.error(err);
+      setError("Login failed. Please check your Firebase rules and configuration.");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0F172A", color: "#F8FAFC", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ padding: 40, background: "#1E293B", borderRadius: 20, textAlign: "center", maxWidth: 400, width: "100%", boxShadow: "0 25px 50px rgba(0,0,0,0.5)", border: "1px solid #334155" }}>
+        <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, letterSpacing: "-0.5px" }}>TaskFlow <span style={{ color: "#7C6FF7" }}>Pro</span></h1>
+        <p style={{ color: "#94A3B8", marginBottom: 32 }}>Secure your productivity.</p>
+        
+        {error && <div style={{ color: "#EF4444", background: "#EF444420", padding: "10px", borderRadius: 8, marginBottom: 20, fontSize: 13, border: "1px solid #EF444450" }}>{error}</div>}
+        
+        <button onClick={handleLogin} disabled={loading} style={{ background: "#7C6FF7", color: "#fff", border: "none", borderRadius: 10, padding: "14px 20px", fontSize: 16, fontWeight: 700, width: "100%", cursor: loading ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, transition: "background 0.2s" }} onMouseEnter={e => e.target.style.background = "#6B5CED"} onMouseLeave={e => e.target.style.background = "#7C6FF7"}>
+          {loading ? "Connecting..." : "Continue with Google"}
+        </button>
+      </div>
+      <div style={{ marginTop: 20, fontSize: 12, color: "#64748B" }}>Powered by Firebase Authentication</div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // If auth is not initialized properly (e.g. missing keys), gracefully fail
+    if (!auth || !auth.app.options.apiKey) {
+      setLoading(false);
+      return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) return <div style={{ height: "100vh", background: "#0F172A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontFamily: "'DM Sans', sans-serif" }}>Loading Secure Session...</div>;
+
+  return user ? <Dashboard user={user} onLogout={() => signOut(auth)} /> : <LoginScreen />;
 }
