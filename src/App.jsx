@@ -93,8 +93,8 @@ const SEED_TASKS = [
 
 function Dashboard({ user, onLogout }) {
   const [tasks, setTasks] = useState(() => {
-    try { const s = localStorage.getItem("tfp_tasks"); return s ? JSON.parse(s) : SEED_TASKS; }
-    catch { return SEED_TASKS; }
+    try { const s = localStorage.getItem("tfp_tasks"); return s ? JSON.parse(s) : []; }
+    catch { return []; }
   });
   const [view, setView] = useState("board"); // board | list | calendar | analytics
   const [theme, setTheme] = useState("light");
