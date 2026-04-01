@@ -96,6 +96,15 @@ function Dashboard({ user, onLogout }) {
     try { const s = localStorage.getItem("tfp_tasks"); return s ? JSON.parse(s) : []; }
     catch { return []; }
   });
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
+
   const [view, setView] = useState("board"); // board | list | calendar | analytics
   const [theme, setTheme] = useState("light");
   const [industry, setIndustry] = useState("personal");
@@ -292,10 +301,10 @@ function Dashboard({ user, onLogout }) {
   }
 
   const styles = {
-    app: { minHeight: "100vh", background: bg, color: text, fontFamily: "'DM Sans', 'Segoe UI', sans-serif", transition: "all 0.3s ease" },
-    sidebar: { width: 220, minHeight: "100vh", background: dark ? "#111827" : "#1E1B4B", padding: "20px 0", display: "flex", flexDirection: "column", flexShrink: 0 },
-    main: { flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" },
-    topbar: { background: surface, borderBottom: `1px solid ${border}`, padding: "12px 24px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" },
+    app: { minHeight: "100vh", background: bg, color: text, fontFamily: "'DM Sans', 'Segoe UI', sans-serif", transition: "all 0.3s ease", position: "relative" },
+    sidebar: { width: 220, position: isMobile ? "fixed" : "static", top: 0, left: 0, bottom: 0, zIndex: 1000, transform: isMobile ? (isSidebarOpen ? "translateX(0)" : "translateX(-100%)") : "none", transition: "transform 0.3s ease", minHeight: "100vh", background: dark ? "#111827" : "#1E1B4B", padding: "20px 0", display: "flex", flexDirection: "column", flexShrink: 0 },
+    main: { flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minWidth: 0 },
+    topbar: { background: surface, borderBottom: `1px solid ${border}`, padding: "12px 24px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", zIndex: 10 },
     card: { background: cardBg, border: `1px solid ${border}`, borderRadius: 12, padding: 16, transition: "all 0.2s ease" },
     btn: (col = "#7C6FF7") => ({ background: col, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 6, transition: "opacity 0.2s" }),
     btnOutline: { background: "transparent", color: textMuted, border: `1px solid ${border}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500 },
@@ -315,6 +324,9 @@ function Dashboard({ user, onLogout }) {
       )}
 
       <div style={{ display: "flex" }}>
+        {isMobile && isSidebarOpen && (
+          <div style={styles.overlay} onClick={() => setIsSidebarOpen(false)} />
+        )}
         {/* Sidebar */}
         <aside style={styles.sidebar}>
           <div style={{ padding: "0 20px 20px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
@@ -363,7 +375,12 @@ function Dashboard({ user, onLogout }) {
         <main style={styles.main}>
           {/* Top Bar */}
           <div style={styles.topbar}>
-            <input value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Search tasks, tags..." style={{ ...styles.input, width: 220, height: 36 }} />
+            {isMobile && (
+              <button onClick={() => setIsSidebarOpen(true)} style={{ background: "transparent", border: "none", color: text, fontSize: 24, cursor: "pointer" }}>
+                ☰
+              </button>
+            )}
+            <input value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Search tasks, tags..." style={{ ...styles.input, flex: "1 1 150px", minWidth: 150, height: 36 }} />
 
             <select value={filterCat} onChange={e => setFilterCat(e.target.value)} style={{ ...styles.input, width: 120, height: 36 }}>
               <option value="all">All Types</option>
@@ -458,7 +475,7 @@ function Dashboard({ user, onLogout }) {
 
 function KanbanView({ tasks, styles, border, textMuted, dark, onDragStart, onDragOver, onDrop, onEdit, onDelete, onUpdate, onPomodoro, onAIPriority }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, minHeight: 400 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, minHeight: 400 }}>
       {KANBAN_COLS.map(col => {
         const colTasks = tasks.filter(t => t.status === col.id);
         return (
@@ -555,7 +572,8 @@ function ListView({ tasks, styles, border, textMuted, dark, onEdit, onDelete, on
   });
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+    <div style={{ overflowX: "auto" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 700 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 100px 100px 100px 100px 80px", gap: 8, padding: "8px 12px", fontSize: 11, fontWeight: 700, color: textMuted, textTransform: "uppercase", letterSpacing: 0.5 }}>
         <span>Task</span><span>Priority</span><span>Status</span><span>Deadline</span><span>Time</span><span>Actions</span>
       </div>
@@ -587,6 +605,7 @@ function ListView({ tasks, styles, border, textMuted, dark, onEdit, onDelete, on
         );
       })}
       {tasks.length === 0 && <div style={{ textAlign: "center", padding: 60, color: textMuted, opacity: 0.5 }}>No tasks found. Create one!</div>}
+      </div>
     </div>
   );
 }
@@ -670,7 +689,7 @@ function AnalyticsView({ analytics, tasks, styles, border, textMuted, dark }) {
   const maxCount = Math.max(...completionByDay.map(d => d.count), 1);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
       {/* Score Card */}
       <div style={{ ...styles.card, gridColumn: "1 / -1", display: "flex", gap: 20, flexWrap: "wrap" }}>
         {[
